@@ -12,6 +12,7 @@ interface CameraPanelProps {
   requirementName: string;
   frameBase64: string | null;
   onToggleCamera: () => void;
+  videoRef?: React.RefObject<HTMLVideoElement | null>;
   fps?: number;
   latency?: number;
   stability?: string;
@@ -26,6 +27,7 @@ export const CameraPanel: React.FC<CameraPanelProps> = ({
   confirmedFingers,
   frameBase64,
   onToggleCamera,
+  videoRef,
   fps = 30.0,
   latency = 18,
   stability = '98.4% (Exc)',
@@ -136,6 +138,21 @@ export const CameraPanel: React.FC<CameraPanelProps> = ({
           justifyContent: 'center',
         }}
       >
+        {/* Live video from browser webcam */}
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          style={{
+            display: isCameraActive && !frameBase64 && videoRef ? 'block' : 'none',
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            transform: 'scaleX(-1)',
+          }}
+        />
+
         {isCameraActive && frameBase64 && !isFrozen ? (
           <img
             src={`data:image/jpeg;base64,${frameBase64}`}
@@ -181,10 +198,10 @@ export const CameraPanel: React.FC<CameraPanelProps> = ({
               Error al conectar con la cámara
             </span>
             <span style={{ fontSize: '0.7rem', color: '#cbd5e1', maxWidth: '240px' }}>
-              {statusMessage || 'Verifica que el servidor backend esté encendido en el puerto 8000.'}
+              {statusMessage || 'Verifica los permisos de cámara en tu navegador.'}
             </span>
           </div>
-        ) : isCameraActive && !frameBase64 ? (
+        ) : isCameraActive && !frameBase64 && !videoRef ? (
           <div
             style={{
               display: 'flex',

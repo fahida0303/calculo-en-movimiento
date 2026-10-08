@@ -12,6 +12,7 @@ import { GestureSemanticsPanel } from './components/GestureSemanticsPanel';
 import { Footer } from './components/Footer';
 import { ErrorMessage } from './components/ErrorMessage';
 import { LoadingState } from './components/LoadingState';
+import { clientHandTracker, type HandTrackerResult } from './services/handTrackerClient';
 
 import type {
   AppMode,
@@ -82,6 +83,7 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'simulation' | 'tutorials'>('simulation');
 
   const wsRef = useRef<WebSocket | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const prevConfirmedFingersRef = useRef<number>(0);
 
   // Refs para evitar problemas de cierres obsoletos (stale closures)
@@ -208,23 +210,71 @@ export const App: React.FC = () => {
     validateFunction(val);
   };
 
+  // Handler para resultados de visión en el cliente (navegador/webcam)
+  const handleClientVisionResult = useCallback((res: HandTrackerResult) => {
+    setHandDetected(res.handDetected);
+    setTwoHandsWarning(res.twoHandsWarning);
+    setDetectedFingers(res.detectedFingers);
+
+    const confirmed = res.confirmedFingers;
+    setConfirmedFingers(confirmed > 0 ? confirmed : 1);
+
+    if (confirmed > 0 && confirmed <= 5 && confirmed !== prevConfirmedFingersRef.current) {
+      prevConfirmedFingersRef.current = confirmed;
+      setRequirement(confirmed);
+      requirementRef.current = confirmed;
+      executeCalcRef.current?.(confirmed);
+    }
+
+    if (res.pointerCoords) {
+      const mappedParam = Number((-5.0 + res.pointerCoords.x * 10.0).toFixed(2));
+      if (Math.abs(mappedParam - paramARef.current) >= 0.1) {
+        setParamA(mappedParam);
+        paramARef.current = mappedParam;
+      }
+    }
+  }, []);
+
+  // Manejo de inicio y parada de cámara (Cliente primero, Backend de respaldo)
+  const startCamera = async () => {
+    setCameraState('CAMERA_LOADING');
+    setStatusMessage('Iniciando cámara y MediaPipe...');
+    try {
+      if (videoRef.current && navigator.mediaDevices) {
+        await clientHandTracker.start(videoRef.current, handleClientVisionResult);
+        setCameraState('CAMERA_ACTIVE');
+        setStatusMessage('Cámara activa. Muestra tu mano.');
+        return;
+      }
+    } catch {
+      // Si falla en el navegador, intentar backend
+    }
+
+    await startCameraBackend();
+  };
+
+  const stopCamera = async () => {
+    clientHandTracker.stop();
+    await stopCameraBackend();
+    setCameraState('CAMERA_OFF');
+    setStatusMessage('Cámara desactivada.');
+    setHandDetected(false);
+    setDetectedFingers(0);
+    setCameraFrame(null);
+  };
+
   // Manejo de cambio de modo (Manual vs Cámara)
   const handleSelectMode = (newMode: AppMode) => {
     if (newMode === 'MANUAL') {
-      stopCameraBackend();
-      setCameraState('CAMERA_OFF');
-      setStatusMessage('Cámara desactivada.');
-      setHandDetected(false);
-      setDetectedFingers(0);
-      setCameraFrame(null);
+      stopCamera();
       setMode('MANUAL');
     } else {
       setMode('CAMERA');
-      startCameraBackend();
+      startCamera();
     }
   };
 
-  // Control de cámara en el backend
+  // Control de cámara en el backend (fallback local)
   const startCameraBackend = async () => {
     setCameraState('CAMERA_LOADING');
     setStatusMessage('Inicializando cámara...');
@@ -564,6 +614,7 @@ export const App: React.FC = () => {
             confirmedFingers={confirmedFingers}
             requirementName={requirement > 0 ? REQUIREMENT_NAMES[requirement] : 'Sin requisito'}
             frameBase64={cameraFrame}
+            videoRef={videoRef}
             onToggleCamera={() => {
               const isRunning =
                 cameraState === 'CAMERA_ACTIVE' ||
@@ -573,12 +624,11 @@ export const App: React.FC = () => {
                 Boolean(cameraFrame);
 
               if (isRunning) {
-                stopCameraBackend();
-                setCameraState('CAMERA_OFF');
+                stopCamera();
                 setMode('MANUAL');
               } else {
                 setMode('CAMERA');
-                startCameraBackend();
+                startCamera();
               }
             }}
             fps={30.0}
