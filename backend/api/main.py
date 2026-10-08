@@ -119,10 +119,20 @@ def calculate_requirement(req: CalculateRequest):
 @app.post("/api/camera/start")
 def start_camera():
     """Activa la cámara con OpenCV y MediaPipe ÚNICAMENTE cuando se selecciona MODO CÁMARA."""
-    res = hand_tracker.start()
-    if not res.get("success", False):
-        return JSONResponse(status_code=500, content=res)
-    return res
+    try:
+        res = hand_tracker.start()
+        if not res.get("success", False):
+            return JSONResponse(status_code=400, content=res)
+        return res
+    except Exception as e:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": str(e),
+                "message": "En servidores en la nube sin cámara física o GPU, utiliza el Modo Manual para explorar todos los requisitos."
+            }
+        )
 
 @app.post("/api/camera/stop")
 def stop_camera():
