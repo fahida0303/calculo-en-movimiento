@@ -19,8 +19,8 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 try:
-    from backend.math.parser import parse_mathematical_function
-    from backend.math.engine import execute_requirement
+    from backend.math_engine.parser import parse_mathematical_function
+    from backend.math_engine.engine import execute_requirement
     from backend.vision.hand_tracker import (
         hand_tracker,
         STATE_CAMERA_OFF,
@@ -28,8 +28,8 @@ try:
         STATE_CAMERA_ERROR
     )
 except ImportError:
-    from math.parser import parse_mathematical_function
-    from math.engine import execute_requirement
+    from math_engine.parser import parse_mathematical_function
+    from math_engine.engine import execute_requirement
     from vision.hand_tracker import (
         hand_tracker,
         STATE_CAMERA_OFF,

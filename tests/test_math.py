@@ -2,8 +2,8 @@
 Pruebas exhaustivas para el motor matemático de 'Cálculo en Movimiento'.
 """
 import pytest
-from backend.math.parser import parse_mathematical_function
-from backend.math.engine import (
+from backend.math_engine.parser import parse_mathematical_function
+from backend.math_engine.engine import (
     execute_requirement,
     compute_requirement_1,
     compute_requirement_2,

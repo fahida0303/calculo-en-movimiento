@@ -1,7 +1,7 @@
 import sys
 sys.path.insert(0, ".")
-from backend.math.parser import parse_mathematical_function
-from backend.math.engine import execute_requirement
+from backend.math_engine.parser import parse_mathematical_function
+from backend.math_engine.engine import execute_requirement
 
 exprs = [
     'x^2 - 4*x + 3',
