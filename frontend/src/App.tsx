@@ -22,8 +22,13 @@ import type {
   CalculationResults,
 } from './types';
 
-const API_BASE = 'http://localhost:8000';
-const WS_BASE = 'ws://localhost:8000/ws/vision';
+const RAW_API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.trim() || 'http://localhost:8000';
+const API_BASE = RAW_API_BASE.replace(/\/+$/, '');
+const WS_BASE = (import.meta.env.VITE_WS_BASE as string | undefined)?.trim() || (
+  API_BASE.startsWith('https://') 
+    ? API_BASE.replace('https://', 'wss://') + '/ws/vision'
+    : API_BASE.replace('http://', 'ws://') + '/ws/vision'
+);
 
 const REQUIREMENT_NAMES: Record<number, string> = {
   1: 'EVALUACIÓN Y PENDIENTE',
