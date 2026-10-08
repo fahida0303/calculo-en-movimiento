@@ -13,6 +13,7 @@ interface CameraPanelProps {
   frameBase64: string | null;
   onToggleCamera: () => void;
   videoRef?: React.RefObject<HTMLVideoElement | null>;
+  canvasRef?: React.RefObject<HTMLCanvasElement | null>;
   fps?: number;
   latency?: number;
   stability?: string;
@@ -28,6 +29,7 @@ export const CameraPanel: React.FC<CameraPanelProps> = ({
   frameBase64,
   onToggleCamera,
   videoRef,
+  canvasRef,
   fps = 30.0,
   latency = 18,
   stability = '98.4% (Exc)',
@@ -150,6 +152,20 @@ export const CameraPanel: React.FC<CameraPanelProps> = ({
             height: '100%',
             objectFit: 'cover',
             transform: 'scaleX(-1)',
+          }}
+        />
+
+        {/* MediaPipe Hand Landmarks & Skeleton Canvas Overlay */}
+        <canvas
+          ref={canvasRef}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            pointerEvents: 'none',
+            display: isCameraActive && !frameBase64 && canvasRef ? 'block' : 'none',
           }}
         />
 

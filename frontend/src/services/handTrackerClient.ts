@@ -9,10 +9,26 @@ export interface HandTrackerResult {
   pointerCoords?: { x: number; y: number };
 }
 
+const HAND_CONNECTIONS = [
+  // Pulgar
+  [0, 1], [1, 2], [2, 3], [3, 4],
+  // Índice
+  [0, 5], [5, 6], [6, 7], [7, 8],
+  // Medio
+  [0, 9], [9, 10], [10, 11], [11, 12],
+  // Anular
+  [0, 13], [13, 14], [14, 15], [15, 16],
+  // Meñique
+  [0, 17], [17, 18], [18, 19], [19, 20],
+  // Base de la palma
+  [5, 9], [9, 13], [13, 17],
+];
+
 export class ClientHandTracker {
   private landmarker: HandLandmarker | null = null;
   private isInitializing = false;
   private videoElement: HTMLVideoElement | null = null;
+  private canvasElement: HTMLCanvasElement | null = null;
   private stream: MediaStream | null = null;
   private animationFrameId: number | null = null;
   private fingerHistory: number[] = [];
@@ -46,9 +62,11 @@ export class ClientHandTracker {
 
   public async start(
     videoEl: HTMLVideoElement,
+    canvasEl: HTMLCanvasElement | null,
     onResult: (result: HandTrackerResult) => void
   ): Promise<void> {
     this.videoElement = videoEl;
+    this.canvasElement = canvasEl;
     this.onResultCallback = onResult;
 
     if (!this.landmarker) {
@@ -95,6 +113,9 @@ export class ClientHandTracker {
           const indexTip = firstHandLandmarks[8];
           const pointerCoords = indexTip ? { x: 1.0 - indexTip.x, y: indexTip.y } : undefined;
 
+          // Dibujar landmarks y esqueleto en el canvas
+          this.drawLandmarks(firstHandLandmarks);
+
           if (this.onResultCallback) {
             this.onResultCallback({
               handDetected: true,
@@ -107,6 +128,7 @@ export class ClientHandTracker {
           }
         } else {
           this.fingerHistory = [];
+          this.clearCanvas();
           if (this.onResultCallback) {
             this.onResultCallback({
               handDetected: false,
@@ -123,6 +145,91 @@ export class ClientHandTracker {
     };
 
     this.animationFrameId = requestAnimationFrame(detect);
+  }
+
+  private drawLandmarks(landmarks: Array<{ x: number; y: number; z: number }>) {
+    if (!this.canvasElement || !this.videoElement) return;
+
+    const canvas = this.canvasElement;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Asegurar dimensiones del canvas
+    if (canvas.width !== this.videoElement.videoWidth || canvas.height !== this.videoElement.videoHeight) {
+      canvas.width = this.videoElement.videoWidth || 640;
+      canvas.height = this.videoElement.videoHeight || 480;
+    }
+
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Espejar horizontalmente igual que el video
+    ctx.save();
+    ctx.scale(-1, 1);
+    ctx.translate(-w, 0);
+
+    // 1. Dibujar conexiones óseas (líneas cian / verde neón)
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#00f5ff';
+    ctx.shadowColor = '#00f5ff';
+    ctx.shadowBlur = 6;
+
+    for (const [startIdx, endIdx] of HAND_CONNECTIONS) {
+      const p1 = landmarks[startIdx];
+      const p2 = landmarks[endIdx];
+      if (p1 && p2) {
+        ctx.beginPath();
+        ctx.moveTo(p1.x * w, p1.y * h);
+        ctx.lineTo(p2.x * w, p2.y * h);
+        ctx.stroke();
+      }
+    }
+
+    // 2. Dibujar articulaciones y puntas de dedos (21 puntos)
+    const tipIndices = new Set([4, 8, 12, 16, 20]);
+
+    for (let i = 0; i < landmarks.length; i++) {
+      const p = landmarks[i];
+      if (!p) continue;
+
+      const px = p.x * w;
+      const py = p.y * h;
+      const isTip = tipIndices.has(i);
+
+      ctx.beginPath();
+      if (isTip) {
+        // Puntas de dedos: Círculo grande amarillo/dorado con halo
+        ctx.arc(px, py, 6, 0, 2 * Math.PI);
+        ctx.fillStyle = '#facc15';
+        ctx.shadowColor = '#facc15';
+        ctx.shadowBlur = 10;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#ffffff';
+        ctx.stroke();
+      } else {
+        // Articulaciones intermedias: Puntos esmeralda
+        ctx.arc(px, py, 4, 0, 2 * Math.PI);
+        ctx.fillStyle = '#10b981';
+        ctx.shadowColor = '#10b981';
+        ctx.shadowBlur = 4;
+        ctx.fill();
+      }
+    }
+
+    ctx.restore();
+  }
+
+  private clearCanvas() {
+    if (!this.canvasElement) return;
+    const ctx = this.canvasElement.getContext('2d');
+    if (ctx) {
+      ctx.clearRect(0, 0, this.canvasElement.width, this.canvasElement.height);
+    }
   }
 
   private countFingers(landmarks: Array<{ x: number; y: number; z: number }>): number {
@@ -192,6 +299,8 @@ export class ClientHandTracker {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
+
+    this.clearCanvas();
 
     if (this.stream) {
       this.stream.getTracks().forEach((track) => track.stop());

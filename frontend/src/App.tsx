@@ -84,6 +84,7 @@ export const App: React.FC = () => {
 
   const wsRef = useRef<WebSocket | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const prevConfirmedFingersRef = useRef<number>(0);
 
   // Refs para evitar problemas de cierres obsoletos (stale closures)
@@ -241,7 +242,7 @@ export const App: React.FC = () => {
     setStatusMessage('Iniciando cámara y MediaPipe...');
     try {
       if (videoRef.current && navigator.mediaDevices) {
-        await clientHandTracker.start(videoRef.current, handleClientVisionResult);
+        await clientHandTracker.start(videoRef.current, canvasRef.current, handleClientVisionResult);
         setCameraState('CAMERA_ACTIVE');
         setStatusMessage('Cámara activa. Muestra tu mano.');
         return;
@@ -615,6 +616,7 @@ export const App: React.FC = () => {
             requirementName={requirement > 0 ? REQUIREMENT_NAMES[requirement] : 'Sin requisito'}
             frameBase64={cameraFrame}
             videoRef={videoRef}
+            canvasRef={canvasRef}
             onToggleCamera={() => {
               const isRunning =
                 cameraState === 'CAMERA_ACTIVE' ||
