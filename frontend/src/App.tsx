@@ -379,6 +379,7 @@ export const App: React.FC = () => {
   const handleReset = () => {
     validationRequestRef.current += 1;
     setValidationIndeterminate(false);
+    setCalculationIndeterminate(null);
     stopCameraBackend();
     setFunctionExpression('x^2 - 4*x + 3');
     setFunctionType('Cuadrática');
@@ -418,7 +419,7 @@ export const App: React.FC = () => {
     executeRequirementCalculation(currentReq, functionExprRef.current, newVal, paramBRef.current);
   };
 
-  const showIndeterminate = validationIndeterminate || calculationIndeterminate === functionExpression.trim();
+  const showIndeterminate = validationIndeterminate || calculationIndeterminate !== null;
 
   return (
     <div style={{ maxWidth: '1680px', margin: '0 auto', padding: '12px 18px', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -549,6 +550,15 @@ export const App: React.FC = () => {
               </div>
             )}
 
+            {showIndeterminate && (
+              <div className="indeterminate-overlay">
+                <div className="indeterminate-card" role="status">
+                  <span className="indeterminate-card__badge">0 / 0</span>
+                  <span className="indeterminate-card__title">Indeterminación</span>
+                </div>
+              </div>
+            )}
+
             {graphStatus === 'READY' && graphData ? (
               <Graph3D
                 graphData={graphData}
@@ -608,27 +618,26 @@ export const App: React.FC = () => {
             disabled={calculationStatus === 'CALCULATING'}
           />
 
-          {/* 3. Panel de 3 Tarjetas de Evaluación */}
-          {showIndeterminate ? (
-            <div className="indeterminate-banner" role="status">Indeterminación</div>
-          ) : (
-            <ResultsPanel
-              functionExpression={functionExpression}
-              functionType={functionType}
-              requirement={requirement}
-              results={results}
-            />
-          )}
+          {/* 3 y 4. Tarjetas de evaluación y verificación: se ocultan ante una indeterminación */}
+          {!showIndeterminate && (
+            <>
+              <ResultsPanel
+                functionExpression={functionExpression}
+                functionType={functionType}
+                requirement={requirement}
+                results={results}
+              />
 
-          {/* 4. Panel de Verificación Matemática Independiente (FASE 16) */}
-          <MathVerificationPanel
-            functionExpression={functionExpression}
-            requirement={requirement}
-            paramA={paramA}
-            paramB={paramB}
-            results={results}
-            isValid={isValidFunction}
-          />
+              <MathVerificationPanel
+                functionExpression={functionExpression}
+                requirement={requirement}
+                paramA={paramA}
+                paramB={paramB}
+                results={results}
+                isValid={isValidFunction}
+              />
+            </>
+          )}
         </main>
 
         {/* ================= COLUMNA 3 (DERECHA): MEDIA PIPE & SEMÁNTICA ================= */}

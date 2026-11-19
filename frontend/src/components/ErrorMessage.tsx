@@ -18,7 +18,8 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({ message, onDismiss }
       background: 'rgba(244, 63, 94, 0.12)',
       border: '1px solid rgba(244, 63, 94, 0.35)',
       borderRadius: 'var(--radius-sm)',
-      color: '#fecdd3',
+      color: '#9f1239',
+      fontWeight: 600,
       fontSize: '0.82rem',
       marginBottom: '16px'
     }}>
