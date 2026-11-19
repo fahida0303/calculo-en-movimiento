@@ -683,11 +683,6 @@ def compute_requirement_2(expr, a: Any = 1.0, b: Any = 3.0, domain_tree=None) ->
         return {"error": str(e)}
     a_f, b_f = float(a_ex.evalf(PRECISION)), float(b_ex.evalf(PRECISION))
 
-    if sp.simplify(b_ex - a_ex) == 0:
-        return {
-            "error": "No se puede calcular la recta secante: los dos puntos tienen el mismo valor de x (a = b)."
-        }
-
     for name, p_ex, p_f in (("A", a_ex, a_f), ("B", b_ex, b_f)):
         ok, why = F.domain_check(p_ex)
         if not ok:
@@ -696,6 +691,11 @@ def compute_requirement_2(expr, a: Any = 1.0, b: Any = 3.0, domain_tree=None) ->
     fa, fb = F.f(a_ex), F.f(b_ex)
     if fa is None or fb is None:
         return {"error": "Parte de los puntos de evaluación caen fuera del dominio real."}
+
+    if sp.simplify(b_ex - a_ex) == 0:
+        return {
+            "error": "Indeterminación (0/0). Los dos puntos tienen el mismo valor de x (a = b)."
+        }
 
     # Razón de cambio con aritmética exacta / alta precisión
     rate_exact = (to_real_branch(F.expr).subs(x, b_ex) - to_real_branch(F.expr).subs(x, a_ex)) / (b_ex - a_ex)
