@@ -1,6 +1,7 @@
 """
 Pruebas para los endpoints API de FastAPI.
 """
+import pytest
 from fastapi.testclient import TestClient
 from backend.api.main import app
 
@@ -41,6 +42,28 @@ def test_api_calculate_requirement_1():
     assert data["results"]["slope"] == 4.0
     assert "graph_data" in data
     assert "curve_points" in data["graph_data"]
+
+@pytest.mark.parametrize(("expression", "indeterminate"), [("0/0", True), ("1/0", False)])
+def test_api_validate_indeterminate(expression, indeterminate):
+    res = client.post("/api/validate", json={"expression": expression})
+    assert res.status_code == 400
+    assert res.json()["indeterminate"] is indeterminate
+
+@pytest.mark.parametrize(("expression", "requirement", "parameters", "indeterminate"), [
+    ("(x^2 - 1)/(x - 1)", 1, {"a": 1.0}, True),
+    ("1/(x - 1)", 1, {"a": 1.0}, False),
+    ("x^2", 2, {"a": 2.0, "b": 2.0}, True),
+    ("sin(x)/x", 5, {"a": 0.0}, True),
+])
+def test_api_calculate_indeterminate(expression, requirement, parameters, indeterminate):
+    res = client.post("/api/calculate", json={
+        "function": expression,
+        "mode": "MANUAL",
+        "requirement": requirement,
+        "parameters": parameters,
+    })
+    assert res.status_code == 400
+    assert res.json()["indeterminate"] is indeterminate
 
 def test_api_calculate_requirement_2():
     res = client.post("/api/calculate", json={

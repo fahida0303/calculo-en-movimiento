@@ -81,7 +81,8 @@ def validate_function(req: ValidateRequest):
                 "success": False,
                 "is_valid": False,
                 "expression": req.expression,
-                "error_message": res["error_message"]
+                "error_message": res["error_message"],
+                "indeterminate": res["indeterminate"],
             }
         )
     return {
@@ -111,7 +112,8 @@ def calculate_requirement(req: CalculateRequest):
                 "success": False,
                 "function": req.function,
                 "requirement": req.requirement,
-                "errors": calc_res.get("error", "Error en el cálculo matemático")
+                "errors": calc_res.get("error", "Error en el cálculo matemático"),
+                "indeterminate": calc_res.get("indeterminate", False),
             }
         )
     return calc_res

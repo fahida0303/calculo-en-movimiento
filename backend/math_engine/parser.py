@@ -266,13 +266,39 @@ def classify_function(expr: sp.Expr) -> str:
         return "Tipo: función compuesta"
 
 
-def _error(cleaned: str, msg: str) -> Dict[str, Any]:
+def has_zero_over_zero(tree: sp.Expr, point: Optional[sp.Expr] = None) -> bool:
+    """Detecta cocientes 0/0 antes de que se simplifique la expresión."""
+    for node in sp.preorder_traversal(tree):
+        if not node.is_Mul:
+            continue
+        numerator, denominator = [], []
+        for factor in node.args:
+            if factor.is_Pow and factor.exp.is_negative:
+                denominator.append(factor.base)
+            else:
+                numerator.append(factor)
+        if any(_is_zero_at(factor, point) for factor in denominator) and any(
+            _is_zero_at(factor, point) for factor in numerator
+        ):
+            return True
+    return False
+
+
+def _is_zero_at(expr: sp.Expr, point: Optional[sp.Expr]) -> bool:
+    expr = expr.doit()
+    if point is not None:
+        expr = expr.subs(x, point)
+    return expr.is_zero is True
+
+
+def _error(cleaned: str, msg: str, *, indeterminate: bool = False) -> Dict[str, Any]:
     return {
         "is_valid": False,
         "expression_str": cleaned,
         "latex": "",
         "function_type": "",
         "error_message": msg,
+        "indeterminate": indeterminate,
         "sympy_expr": None,
         "domain_tree": None,
     }
@@ -341,12 +367,6 @@ def parse_mathematical_function(raw_input: str) -> Dict[str, Any]:
     if unrecognized:
         return _error(cleaned, f"Variable(s) no permitida(s): {', '.join(unrecognized)}. Solo se permite 'x'.")
 
-    # Valores no reales o indefinidos en la propia expresión (ej: 1/0, sqrt(-1))
-    if expr.has(sp.zoo, sp.nan, sp.oo, sp.S.NegativeInfinity):
-        return _error(cleaned, "La expresión contiene una operación indefinida (por ejemplo, una división por cero).")
-    if expr.has(sp.I):
-        return _error(cleaned, "La expresión produce números complejos; solo se admiten funciones reales.")
-
     # Árbol sin simplificar para el análisis de dominio exacto
     try:
         domain_tree = parse_expr(
@@ -358,6 +378,15 @@ def parse_mathematical_function(raw_input: str) -> Dict[str, Any]:
         )
     except Exception:
         domain_tree = expr
+
+    if has_zero_over_zero(domain_tree):
+        return _error(cleaned, "La expresión contiene un cociente 0/0.", indeterminate=True)
+
+    # Valores no reales o indefinidos en la propia expresión (ej: 1/0, sqrt(-1))
+    if expr.has(sp.zoo, sp.nan, sp.oo, sp.S.NegativeInfinity):
+        return _error(cleaned, "La expresión contiene una operación indefinida (por ejemplo, una división por cero).")
+    if expr.has(sp.I):
+        return _error(cleaned, "La expresión produce números complejos; solo se admiten funciones reales.")
 
     fn_type = classify_function(expr)
 

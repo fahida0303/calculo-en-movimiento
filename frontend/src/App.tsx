@@ -45,6 +45,7 @@ export const App: React.FC = () => {
   const [functionType, setFunctionType] = useState<string>('Cuadrática');
   const [isValidFunction, setIsValidFunction] = useState<boolean>(true);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationIndeterminate, setValidationIndeterminate] = useState(false);
 
   // 2. Modo de interacción
   const [mode, setMode] = useState<AppMode>('MANUAL');
@@ -68,6 +69,7 @@ export const App: React.FC = () => {
   // 5. Estado de cálculo y resultados
   const [calculationStatus, setCalculationStatus] = useState<CalculationStatus>('IDLE');
   const [results, setResults] = useState<CalculationResults | null>(null);
+  const [calculationIndeterminate, setCalculationIndeterminate] = useState<string | null>(null);
   const [coordinates, setCoordinates] = useState<{ X: string; Y: string; Z: string }>({
     X: '2.000',
     Y: '-1.000',
@@ -93,6 +95,8 @@ export const App: React.FC = () => {
   const requirementRef = useRef<number>(requirement);
   const paramARef = useRef<number>(paramA);
   const paramBRef = useRef<number>(paramB);
+  const validationRequestRef = useRef(0);
+  const calculationRequestRef = useRef(0);
   const executeCalcRef = useRef<((req: number, expr?: string, aVal?: number, bVal?: number) => Promise<void>) | null>(null);
 
   useEffect(() => {
@@ -105,6 +109,8 @@ export const App: React.FC = () => {
 
   // Validar función en el backend (PASO 2)
   const validateFunction = useCallback(async (expr: string) => {
+    const request = ++validationRequestRef.current;
+    setValidationIndeterminate(false);
     if (!expr || !expr.trim()) {
       setIsValidFunction(false);
       setValidationError('La expresión está vacía.');
@@ -119,16 +125,19 @@ export const App: React.FC = () => {
         body: JSON.stringify({ expression: expr }),
       });
       const data = await res.json();
+      if (request !== validationRequestRef.current) return;
       if (res.ok && data.is_valid) {
         setIsValidFunction(true);
         setValidationError(null);
         setFunctionType(data.function_type);
       } else {
+        setValidationIndeterminate(data.indeterminate === true);
         setIsValidFunction(false);
         setValidationError(data.error_message || 'Función matemática no válida');
         setFunctionType('');
       }
     } catch {
+      if (request !== validationRequestRef.current) return;
       // Fallback local básico
       setIsValidFunction(true);
       setValidationError(null);
@@ -151,6 +160,8 @@ export const App: React.FC = () => {
 
       setCalculationStatus('CALCULATING');
       setGlobalError(null);
+      setCalculationIndeterminate(null);
+      const request = ++calculationRequestRef.current;
 
       try {
         const res = await fetch(`${API_BASE}/api/calculate`, {
@@ -165,6 +176,7 @@ export const App: React.FC = () => {
         });
 
         const data = await res.json();
+        if (request !== calculationRequestRef.current) return;
 
         if (res.ok && data.success) {
           setResults(data.results);
@@ -176,9 +188,14 @@ export const App: React.FC = () => {
           setConfirmedFingers(reqNum);
         } else {
           setCalculationStatus('ERROR');
+          if (data.indeterminate === true) {
+            setCalculationIndeterminate(expr);
+            setResults(null);
+          }
           setGlobalError(data.errors || 'Error en el cálculo matemático');
         }
       } catch (err: any) {
+        if (request !== calculationRequestRef.current) return;
         setCalculationStatus('ERROR');
         setGlobalError(`Error de comunicación con el backend: ${err.message}`);
       }
@@ -206,6 +223,7 @@ export const App: React.FC = () => {
 
   // Al escribir en el input de función
   const handleFunctionInputChange = (val: string) => {
+    setCalculationIndeterminate(null);
     setFunctionExpression(val);
     functionExprRef.current = val;
     validateFunction(val);
@@ -359,6 +377,8 @@ export const App: React.FC = () => {
 
   // Botón [ REINICIAR ]
   const handleReset = () => {
+    validationRequestRef.current += 1;
+    setValidationIndeterminate(false);
     stopCameraBackend();
     setFunctionExpression('x^2 - 4*x + 3');
     setFunctionType('Cuadrática');
@@ -380,6 +400,8 @@ export const App: React.FC = () => {
 
   // Botón [ LIMPIAR ]
   const handleClear = () => {
+    calculationRequestRef.current += 1;
+    setCalculationIndeterminate(null);
     setResults(null);
     setGraphData(null);
     setGraphStatus('HIDDEN');
@@ -395,6 +417,8 @@ export const App: React.FC = () => {
     const currentReq = requirementRef.current > 0 ? requirementRef.current : 1;
     executeRequirementCalculation(currentReq, functionExprRef.current, newVal, paramBRef.current);
   };
+
+  const showIndeterminate = validationIndeterminate || calculationIndeterminate === functionExpression.trim();
 
   return (
     <div style={{ maxWidth: '1680px', margin: '0 auto', padding: '12px 18px', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -585,12 +609,16 @@ export const App: React.FC = () => {
           />
 
           {/* 3. Panel de 3 Tarjetas de Evaluación */}
-          <ResultsPanel
-            functionExpression={functionExpression}
-            functionType={functionType}
-            requirement={requirement}
-            results={results}
-          />
+          {showIndeterminate ? (
+            <div className="indeterminate-banner" role="status">Indeterminación</div>
+          ) : (
+            <ResultsPanel
+              functionExpression={functionExpression}
+              functionType={functionType}
+              requirement={requirement}
+              results={results}
+            />
+          )}
 
           {/* 4. Panel de Verificación Matemática Independiente (FASE 16) */}
           <MathVerificationPanel

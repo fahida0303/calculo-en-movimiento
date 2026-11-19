@@ -19,7 +19,7 @@ import math
 import threading
 import numpy as np
 import sympy as sp
-from .parser import parse_mathematical_function, x
+from .parser import has_zero_over_zero, parse_mathematical_function, x
 
 ANALYSIS_INTERVAL = (-10, 10)
 PRECISION = 30            # dígitos significativos de evaluación
@@ -321,6 +321,7 @@ class MathFunction:
 
     def __init__(self, expr: sp.Expr, domain_tree: Optional[sp.Expr] = None):
         self.expr = expr
+        self.domain_tree = domain_tree if domain_tree is not None else expr
         restr = collect_restrictions(domain_tree) if domain_tree is not None else []
         for r in collect_restrictions(expr):
             if all(sp.srepr(r[1]) != sp.srepr(q[1]) or r[0] != q[0] for q in restr):
@@ -619,6 +620,9 @@ def compute_requirement_1(expr, a: Any = 2.0, domain_tree=None, adjust_if_singul
         return {"error": str(e)}
     a_f = float(a_ex.evalf(PRECISION))
 
+    if has_zero_over_zero(F.domain_tree, a_ex):
+        return {"error": f"Al sustituir x = {_fmt(a_f)} se obtiene 0/0.", "indeterminate": True}
+
     ok, why = F.domain_check(a_ex)
     if not ok:
         return {"error": f"El punto seleccionado x = {_fmt(a_f)} no pertenece al dominio de la función: {why}."}
@@ -684,6 +688,8 @@ def compute_requirement_2(expr, a: Any = 1.0, b: Any = 3.0, domain_tree=None) ->
     a_f, b_f = float(a_ex.evalf(PRECISION)), float(b_ex.evalf(PRECISION))
 
     for name, p_ex, p_f in (("A", a_ex, a_f), ("B", b_ex, b_f)):
+        if has_zero_over_zero(F.domain_tree, p_ex):
+            return {"error": f"Al evaluar el punto {name} en x = {_fmt(p_f)} se obtiene 0/0.", "indeterminate": True}
         ok, why = F.domain_check(p_ex)
         if not ok:
             return {"error": f"El punto seleccionado {name}: x = {_fmt(p_f)} no pertenece al dominio de la función: {why}."}
@@ -694,7 +700,8 @@ def compute_requirement_2(expr, a: Any = 1.0, b: Any = 3.0, domain_tree=None) ->
 
     if sp.simplify(b_ex - a_ex) == 0:
         return {
-            "error": "Indeterminación (0/0). Los dos puntos tienen el mismo valor de x (a = b)."
+            "error": "Indeterminación (0/0). Los dos puntos tienen el mismo valor de x (a = b).",
+            "indeterminate": True,
         }
 
     # Razón de cambio con aritmética exacta / alta precisión
@@ -1101,6 +1108,9 @@ def compute_requirement_5(expr, function_type: str = "General", domain_tree=None
 
     t_f = float(t_ex.evalf(PRECISION))
 
+    if has_zero_over_zero(F.domain_tree, t_ex):
+        return {"error": f"Al sustituir t = {_fmt(t_f)} se obtiene 0/0.", "indeterminate": True}
+
     # Verificar dominio en t_ex
     ok, why = F.domain_check(t_ex)
     if not ok:
@@ -1210,6 +1220,7 @@ def execute_requirement(expr_str: str, requirement_num: int, params: Optional[Di
         return {
             "success": False,
             "error": parse_res["error_message"],
+            "indeterminate": parse_res["indeterminate"],
             "function": expr_str,
             "function_type": "",
             "requirement": requirement_num
@@ -1219,9 +1230,9 @@ def execute_requirement(expr_str: str, requirement_num: int, params: Optional[Di
     fn_type = parse_res["function_type"]
     F = MathFunction(expr, parse_res.get("domain_tree"))
 
-    def fail(msg):
+    def fail(msg, indeterminate=False):
         return {"success": False, "error": msg, "function": expr_str, "function_type": fn_type,
-                "requirement": requirement_num}
+                "requirement": requirement_num, "indeterminate": indeterminate}
 
     # Muestreo 3D de la función base
     curve_points = sample_curve_3d(expr, F=F)
@@ -1255,7 +1266,7 @@ def execute_requirement(expr_str: str, requirement_num: int, params: Optional[Di
                 req_a = 0.0
         r1 = compute_requirement_1(F, a=req_a)
         if "error" in r1:
-            return fail(r1["error"])
+            return fail(r1["error"], r1.get("indeterminate", False))
         result_data = r1
         coordinates = {
             "X": f"{r1['point']['x']:.3f}",
@@ -1278,7 +1289,7 @@ def execute_requirement(expr_str: str, requirement_num: int, params: Optional[Di
                     req_a, req_b = 1.0, 3.0
         r2 = compute_requirement_2(F, a=req_a, b=req_b)
         if "error" in r2:
-            return fail(r2["error"])
+            return fail(r2["error"], r2.get("indeterminate", False))
         result_data = r2
         coordinates = {
             "X": f"{r2['point_b']['x']:.3f}",
@@ -1307,6 +1318,8 @@ def execute_requirement(expr_str: str, requirement_num: int, params: Optional[Di
 
     elif requirement_num == 5:
         r5 = compute_requirement_5(F, fn_type, params=params)
+        if "error" in r5:
+            return fail(r5["error"], r5.get("indeterminate", False))
         result_data = r5
         if r5.get("target_point"):
             tp = r5["target_point"]
